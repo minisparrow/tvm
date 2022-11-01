@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-11-14T12:32:18.663464
+// Generated at 2022-11-15T09:57:43.659730
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -780,21 +780,6 @@ stage('Build') {
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
-          sh(
-            script: """
-              set -eux
-              . ${jenkins_scripts_root}/retry.sh
-              md5sum build/libtvm.so
-              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
-              md5sum build/libvta_fsim.so
-              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu2/build/libvta_fsim.so
-              md5sum build/libtvm_runtime.so
-              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu2/build/libtvm_runtime.so
-              md5sum build/config.cmake
-              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu2/build/config.cmake
-            """,
-            label: 'Upload artifacts to S3',
-          )
           }
         }
       }

@@ -627,7 +627,7 @@ def check_mentionable_users(pr, triggering_comment, args):
 
 
 AUTH_CHECKS = {
-    "metionable_users": check_mentionable_users,
+    "mentionable_users": check_mentionable_users,
     "collaborators": check_collaborator,
     "author": check_author,
 }

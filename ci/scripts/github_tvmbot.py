@@ -671,7 +671,7 @@ class Rerun:
         "run ci",
     ]
 
-    auth = [AUTH_CHECKS["metionable_users"]]
+    auth = [AUTH_CHECKS["mentionable_users"]]
 
     @staticmethod
     def run(pr: PR):

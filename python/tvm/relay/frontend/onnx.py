@@ -1048,7 +1048,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
         if segment_ids:
             vec_sum = _op.add(vec_sum, segment_vec)
 
-        ln = layer_norm(vec_sum, eps, gamma, beta)
+        ln = _op.nn.layer_norm(vec_sum, gamma, beta, epsilon=eps, axis=-1)
 
         mask_index = _op.const(np.zeros((batch_size,), dtype="int32"))
         if mask:

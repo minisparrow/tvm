@@ -693,7 +693,7 @@ def fsim_test(image) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
     label: 'Run cmake build',
   )
 }
@@ -777,8 +777,9 @@ stage('Build') {
 
 
           // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
-          make("${ci_gpu} --no-gpu", 'build2', '-j2')
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_clean.sh build",
+          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
+          make("${ci_gpu} --no-gpu", 'build', '-j2')
           sh(
             script: """
               set -eux

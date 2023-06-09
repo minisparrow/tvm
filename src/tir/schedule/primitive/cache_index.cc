@@ -272,7 +272,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
 
     // Create loop vars and block vars' binding_value
     std::vector<Var> loop_vars;
-    Map<Var, PrimExpr> replace_table;
+    Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
       DataType data_type = DetermineDatatype(arith::IntSet::FromRange(info->range_map.at(it)));
       Var loop_var("ax" + std::to_string(replace_table.size()), data_type);
@@ -290,7 +290,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
     Region access_region;
     // indices used in block body
     Array<PrimExpr> access_indices;
-    Map<Var, PrimExpr> block_var_map;
+    Map<Var, Var> block_var_map;
     // Create block vars, block's accessed region and accessing indices
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
@@ -425,10 +425,6 @@ class CacheIndexRewriter : public StmtExprMutator {
     return ret_stmt;
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
  private:
   /*! \brief The parent scope of the insertion */
   const StmtSRef& scope_sref_;
@@ -467,7 +463,7 @@ Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
   Array<Block> cache_stages = MakeIndexCacheStage(&info, storage_scope);
   Stmt new_scope = CacheIndexRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
-  bool old_stage_pipeline = self->block_info[block_sref].scope->stage_pipeline;
+  bool old_stage_pipeline = self->block_info[block_sref].stage_pipeline;
 
   // Step 3. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
@@ -490,7 +486,7 @@ Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
 
     block_info.affine_binding = affine_binding;
     block_info.region_cover = true;
-    block_info.scope->stage_pipeline = old_stage_pipeline;
+    block_info.stage_pipeline = old_stage_pipeline;
   }
 
   return result_block_srefs;

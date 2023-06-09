@@ -235,7 +235,7 @@ def squeeze(data, axis=None):
                 try:
                     tempaxis.append(int(tmpax))
                 except ValueError as err:
-                    raise RuntimeError("Unrecognized axis type: %s" % err)
+                    raise RuntimeError(f"Unrecognized axis type: {err}")
         axis = tempaxis
     return _make.squeeze(data, axis)
 
@@ -324,7 +324,7 @@ def reshape(data, newshape, allowzero=False):
                 try:
                     tempshape.append(int(shape))
                 except ValueError as err:
-                    raise RuntimeError("Unrecognized shape type: %s" % err)
+                    raise RuntimeError(f"Unrecognized shape type: {err}")
         newshape = tempshape
     return _make.reshape(data, list(newshape), allowzero)
 
@@ -351,31 +351,6 @@ def argwhere(condition):
         relay.argwhere(condition) = [[0, 0], [1, 1]]
     """
     return _make.argwhere(condition)
-
-
-def scatter(data, indices, updates, axis):
-    """Update data at positions defined by indices with values in updates.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data to the operator.
-
-    indices : relay.Expr
-        The index locations to update.
-
-    updates : relay.Expr
-        The values to update.
-
-    axis : int
-        The axis to scatter on.
-
-    Returns
-    -------
-    ret : relay.Expr
-        The computed result.
-    """
-    return _make.scatter(data, indices, updates, axis)
 
 
 def scatter_elements(data, indices, updates, axis=0, reduction="update"):
@@ -1961,6 +1936,33 @@ def stft(
         window = _make.ones([n_fft], "int32")
 
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+
+
+def dft(re_data, im_data, inverse=False):
+    """
+    Computes the discrete Fourier transform of input (calculation along the last axis).
+    This gives frequency components of the signal as they change over time.
+
+    Parameters
+    ----------
+    re_data : relay.Expr
+        N-D tensor, real part of the input signal.
+
+    im_data : relay.Expr
+        N-D tensor, imaginary part of the input signal.
+        If the signal is real, then the values of this tensor are zeros.
+
+    inverse : bool
+        Whether to perform the inverse discrete fourier transform.
+
+    Returns
+    -------
+    re_output : relay.Expr
+        The Fourier Transform of the input (Real part).
+    im_output : relay.Expr
+        The Fourier Transform of the input (Imaginary part).
+    """
+    return TupleWrapper(_make.dft(re_data, im_data, inverse), 2)
 
 
 def trilu(data, k, upper=True):

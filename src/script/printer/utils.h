@@ -61,6 +61,7 @@ inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
 inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
   Doc doc = d->AsDoc(obj, ObjectPath::Root());
+  bool move_source_paths = false;
   if (const auto* expr_doc = doc.as<ExprDocNode>()) {
     if (!cfg->verbose_expr) {
       f->stmts.clear();
@@ -72,6 +73,7 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     for (const StmtDoc& d : stmt_block->stmts) {
       f->stmts.push_back(d);
     }
+    move_source_paths = true;
   } else {
     LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
   }
@@ -87,7 +89,13 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
           CommentDoc("Metadata omitted. Use show_meta=True in script() method to show it."));
     }
   }
-  os << DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
+  if (move_source_paths) {
+    StmtBlockDoc new_doc(f->stmts);
+    new_doc->source_paths = std::move(doc->source_paths);
+    os << DocToPythonScript(new_doc, cfg);
+  } else {
+    os << DocToPythonScript(StmtBlockDoc(f->stmts), cfg);
+  }
   return os.str();
 }
 
@@ -101,12 +109,6 @@ inline ExprDoc IR(const IRDocsifier& d, const String& attr) {
 inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
   d->ir_usage.insert("tir");
   return IdDoc(d->cfg->tir_prefix)->Attr(attr);
-}
-
-/*! \brief Creates the TIR common prefix, which is by default `T` */
-inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
-  d->ir_usage.insert("relax");
-  return IdDoc(d->cfg->relax_prefix)->Attr(attr);
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
@@ -123,9 +125,7 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     if (d->ir_usage.count("tir")) {
       stmts.push_back(CommentDoc("from tvm.script import tir as " + d->cfg->tir_prefix));
     }
-    if (d->ir_usage.count("relax")) {
-      stmts.push_back(CommentDoc("from tvm.script import relax as " + d->cfg->relax_prefix));
-    }
+
     stmts.push_back(CommentDoc(""));
     stmts.push_back(Downcast<StmtDoc>(doc));
     return StmtBlockDoc(stmts);

@@ -1002,7 +1002,7 @@ def test_scatter(target, dev, executor_kind):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
         i = relay.var("i", relay.TensorType(ishape, indices_dtype))
         u = relay.var("u", relay.TensorType(ishape, "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
@@ -1055,7 +1055,7 @@ class TestDynamicScatter:
         d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
         i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
         u = relay.var("u", relay.TensorType([relay.Any() for i in range(len(ishape))], "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
@@ -1941,6 +1941,26 @@ def test_scatter_nd(target, dev, executor_kind):
             after_mod = passes(before_mod)
 
     test_scatter_nd_large_shape()
+
+    def test_scatter_nd_inequal_m_k():
+        def before():
+            data = relay.const(np.zeros((1, 1, 10), dtype="float32"), dtype="float32")
+            indices = relay.const(np.zeros((2, 1, 1, 1), dtype="float32"), dtype="int64")
+            update = relay.const(np.ones((1, 1, 1, 10), dtype="float32"), dtype="float32")
+            b = relay.op.scatter_nd(data, indices, update)
+            return relay.Function(relay.analysis.free_vars(b), b)
+
+        passes = tvm.transform.Sequential(
+            [
+                relay.transform.InferType(),
+                relay.transform.FoldConstant(),
+            ]
+        )
+        before_mod = tvm.IRModule.from_expr(before())
+        with tvm.transform.PassContext(opt_level=3):
+            after_mod = passes(before_mod)
+
+    test_scatter_nd_inequal_m_k()
 
     def verify_scatter_nd(
         data_np, indices_np, updates_np, ref_res, mode="add", rtol=1e-5, atol=1e-5

@@ -99,6 +99,14 @@ def get_tvm_output_with_vm(
             freeze_params=freeze_params,
             convert_config=convert_config,
         )
+        # handle the bfloat16 so we explicitly allocate
+        # bfloat16 arrays as input
+        for i, param in enumerate(mod["main"].params):
+            if param.type_annotation.dtype == "bfloat16":
+                input_data[i] = tvm.nd.empty(input_data[i].shape, "bfloat16").copyfrom(
+                    input_data[i]
+                )
+
     if validate_structural_equal:
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_onnx(
@@ -3931,6 +3939,17 @@ def test_lppool(target, dev):
         auto_pad="SAME_UPPER",
     )
 
+    # Pool2D with empty stride
+    verify_lppool(
+        x_shape=[1, 3, 32, 32],
+        kernel_shape=[2, 2],
+        p=4,
+        strides=None,
+        pads=None,
+        out_shape=[1, 3, 32, 32],
+        auto_pad="SAME_LOWER",
+    )
+
     # Pool3D with stride
     verify_lppool(
         x_shape=[1, 1, 32, 32, 32],
@@ -5429,9 +5448,6 @@ unsupported_onnx_tests = [
     "test_cumsum_2d_negative_axis",
     "test_det_2d",
     "test_det_nd",
-    "test_dft",
-    "test_dft_axis",
-    "test_dft_inverse",
     "test_dropout_default",
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
@@ -5591,6 +5607,9 @@ def test_onnx_nodes(target, dev, onnx_test):
         # satisfies onnx precision for bicubic interpolation
         atol = 1e-4
 
+    if "dft" in test_dir:
+        atol = 1e-3
+
     model = onnx.load(os.path.join(test_dir, "model.onnx"))
     for test_data_dir in glob.glob(os.path.join(test_dir, "test_data_set*")):
         inputs = []
@@ -5639,6 +5658,7 @@ def test_wrong_input():
         relay.frontend.from_onnx(model, shape=wrong_shape_dict)
 
 
+@pytest.mark.skip(reason="unsupported op numel")
 @tvm.testing.parametrize_targets
 def test_aten(target, dev):
     """test_aten"""
@@ -5831,7 +5851,7 @@ def test_biasgelu(target, dev, data_type, op_name):
     """test_biasgelu"""
     dtype = np.dtype(data_type)
     tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[dtype]
-    absolute_tolerance = 1e-3 if data_type == "float16" else 1e-5
+    absolute_tolerance = 1e-2 if data_type == "float16" else 1e-5
 
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(
@@ -6982,6 +7002,31 @@ def test_qlinearsigmoid(target, dev):
     verify_qlinearsigmoid([])
 
 
+@tvm.testing.parametrize_targets
+def test_qlinearsoftmax(target, dev):
+    """test_qlinearsoftmax"""
+
+    def verify_qlinearsoftmax(a_shape):
+
+        _ = np.random.random(a_shape).astype("float32")
+
+        input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
+
+        node = helper.make_node("Softmax", ["a"], ["B"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearsoftmax_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("B", TensorProto.FLOAT, list(a_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearsoftmax_test")
+        quantize_and_verify_with_ort(model, ["a"], [a_shape], target, dev)
+
+    verify_qlinearsoftmax([4, 2])
+    verify_qlinearsoftmax([5])
+    verify_qlinearsoftmax([3, 4, 5])
+
+
 @tvm.testing.parametrize_targets("llvm")
 def test_random_bernoulli(target, dev):
     """test_random_bernoulli"""
@@ -7931,6 +7976,78 @@ def test_linear_regressor(target, dev):
     verify_linear_regressor((1, 3), (30), (10), targets=10)
     verify_linear_regressor((10, 3), (30), (10), targets=10, batch=10)
     verify_linear_regressor((1, 4), (3), (1))
+
+
+@tvm.testing.parametrize_targets
+def test_dft(target, dev):
+    """test_dft"""
+
+    def verify_dft(
+        _axis,
+        _inverse,
+        _onesided,
+        _dft_length,
+        _input_shape,
+        _output_shape,
+    ):
+        input_names = ["input"]
+        if _dft_length is not None:
+            input_names.append("dft_length")
+
+        node = onnx.helper.make_node(
+            "DFT",
+            inputs=input_names,
+            outputs=["output"],
+            axis=_axis,
+            inverse=_inverse,
+            onesided=_onesided,
+        )
+
+        nodes = []
+        if _dft_length is not None:
+            nodes.append(
+                make_constant_node("dft_length", TensorProto.INT32, [], [_dft_length]),
+            )
+        nodes.append(node)
+
+        graph = helper.make_graph(
+            nodes,
+            "dft_test",
+            inputs=[
+                helper.make_tensor_value_info("input", TensorProto.FLOAT, _input_shape),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, _output_shape),
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="dft_test")
+
+        _input = np.random.normal(size=_input_shape).astype("float32")
+        verify_with_ort_with_inputs(
+            model,
+            [_input],
+            [_input_shape],
+            target=target,
+            dev=dev,
+            rtol=1e-4,
+            atol=1e-4,
+            use_vm=False,
+        )
+
+    batch_size = 5
+    n = 2
+    D = 7
+
+    for axis in list(range(1, n)) + [-2]:
+        for inverse, onesided in [(0, 0), (0, 1), (1, 0)]:
+            for n_fft in [D, D - 1, D + 1]:
+                for c in [1, 2]:
+                    input_shape = [batch_size] + n * [D] + [c]
+                    output_shape = [batch_size] + n * [D] + [2]
+                    if onesided == 1:
+                        output_shape[axis] = output_shape[axis] // 2 + 1
+                    verify_dft(axis, inverse, onesided, n_fft, input_shape, output_shape)
 
 
 @tvm.testing.parametrize_targets

@@ -81,13 +81,13 @@ tvmc micro --help
 # Obtain a Tiny Model
 ############################################################
 #
-# For this tutorial, we will use Magic Wand model from tflite micro. Magic Wand is a
-# Depthwise Convolution Layer model which recognizes gestures with an accelerometer.
+# For this tutorial, we will use Micro Speech model from tflite micro. Micro Speech is a
+# Depthwise Convolution Layer model to recognize keywords in speech.
 #
 # For this tutorial we will be using the model in tflite format.
 #
 # bash
-wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/magic_wand/magic_wand.tflite
+wget https://github.com/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite
 # bash
 
 ############################################################
@@ -98,19 +98,19 @@ wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/e
 # containing a file for each piece of the TVM compiler output which can be used on micro targets outside
 # TVM environment. Read more about :ref:`Model Library Format <model_library_format>`.
 #
-# Here, we generate a MLF file for ``qemu_x86`` Zephyr board. To generate MLF output for the ``magic_wand`` tflite model:
+# Here, we generate a MLF file for ``qemu_x86`` Zephyr board. You can chooses `aot` or `graph` executor type
+# to run this tutorial, however, we recommend to use `aot` for microTVM targets since `aot` uses ahead of time
+# compilation with static memory allocation. To generate MLF output for the ``micro_speech`` tflite model:
 #
 # bash
-tvmc compile magic_wand.tflite \
+tvmc compile micro_speech.tflite \
     --target='c -keys=cpu -model=host' \
     --runtime=crt \
     --runtime-crt-system-lib 1 \
-    --executor='graph' \
-    --executor-graph-link-params 0 \
+    --executor='aot' \
     --output model.tar \
     --output-format mlf \
-    --pass-config tir.disable_vectorize=1 \
-    --disabled-pass=AlterOpLayout
+    --pass-config tir.disable_vectorize=1
 # bash
 # This will generate a ``model.tar`` file which contains TVM compiler output files. To run this command for
 # a different Zephyr device, you need to update ``target``. For instance, for ``nrf5340dk_nrf5340_cpuapp`` board
@@ -197,6 +197,6 @@ tvmc run \
 #      # INFO:__main__:b'[100%] [QEMU] CPU: qemu32,+nx,+pae\n'
 #      # remote: microTVM Zephyr runtime - running
 #      # INFO:__main__:b'[100%] Built target run\n'
-#      # [[3.         1.         2.         0.        ]
-#      # [0.47213247 0.41364592 0.07525456 0.03896701]]
+#      # [[   3    2    1    0]
+#      #  [ 113 -120 -121 -128]]
 #

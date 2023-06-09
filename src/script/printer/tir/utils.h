@@ -177,6 +177,29 @@ inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) 
   return Docsify(obj, d, *f, cfg);
 }
 
+/* \brief Specify which variables are defined along with the buffer
+ *
+ * Depending on the context, defining a buffer may define additional
+ * variables associated with the buffer.
+ */
+enum class BufferVarDefinition {
+  // All parameters in the buffer must be defined prior to this call.
+  // For example, DeclBuffer.
+  None,
+
+  // The data pointer is defined along with the buffer, but buffer
+  // parameters (shape/stride/elem_offset) must be defined prior to
+  // use.  For example, `BlockNode::alloc_buffers`, or the
+  // syntax-sugar representation of an `Allocate`/`DeclBuffer` pair.
+  DataPointer,
+
+  // The data pointer is defined along with the buffer, along with any
+  // buffer parameters (shape/stride/elem_offset) that have not
+  // previously been defined.  For example,
+  // `BlockNode::match_buffers`, or the `PrimFuncNode::buffer_map`.
+  MatchBuffer,
+};
+
 /*!
  * \brief Declare and define a buffer
  * \param buffer The buffer to be defined
@@ -185,10 +208,13 @@ inline std::string ReprPrintTIR(const ObjectRef& obj, const PrinterConfig& cfg) 
  * \param p The object path
  * \param f The frame
  * \param d The IRDocsifier
+ * \param var_definitions Which variables are implicitly defined with
+ *     the buffer.
  * \return The ExprDoc corresponding to the buffer declaration
  */
 ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
-                   const ObjectPath& p, const Frame& frame, const IRDocsifier& d);
+                   const ObjectPath& p, const Frame& frame, const IRDocsifier& d,
+                   BufferVarDefinition var_definitions);
 
 /*!
  * \brief Declare and define a buffer as annotation
@@ -200,6 +226,15 @@ ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<
  */
 ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
                    const IRDocsifier& d);
+
+/*!
+ * \brief Print the creation of a Var
+ * \param var The Var to be printed
+ * \param var_p The object path of the Var
+ * \param d The IRDocsifier
+ * \return The ExprDoc corresponding to the Var creation
+ */
+ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d);
 
 /*! \brief A Var occurrence counter visitor */
 class OccurrenceCounter : public tir::StmtExprVisitor {
